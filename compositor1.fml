@@ -1,0 +1,125 @@
+// firmir-compositor1 UI: a desktop area hosting embedded Wayland clients
+// (their frames are built from C++ in CompositorApp) plus a bottom taskbar
+// with the socket name on the left and one button per hosted window on the
+// right. The taskbar model is rebuilt by CompositorApp on every change.
+#include <firmir/items/Window.hpp>
+#include <firmir/items/Rectangle.hpp>
+#include <firmir/items/Text.hpp>
+#include <firmir/items/Item.hpp>
+#include <firmir/items/Row.hpp>
+#include <firmir/items/Repeater.hpp>
+#include <firmir/items/ListModel.hpp>
+#include <firmir/items/MouseArea.hpp>
+#include "CompositorApp.hpp"
+
+Firmir.Gui.Window {
+    id: root
+    title: "firmir-compositor1"
+    // The desktop fills the window's screen; the bindings re-evaluate on
+    // hotplug and the taskbar metrics below follow the panel density.
+    width: App.screenWidth
+    height: App.screenHeight
+
+    // Density-independent metrics: 1 mm in pixels. ppcm is pixels per
+    // centimetre, so a tenth of it is one millimetre; 96 ppi is the fallback
+    // when the backend does not report the panel size. The taskbar and one
+    // button per hosted window are finger-sized on a dense panel and unchanged
+    // on a desktop display.
+    property number mm: root.ppcm > 0 ? root.ppcm / 10 : 3.7795
+    property number barHeight: 11 * mm
+    property number taskWidth: 45 * mm
+    property number taskHeight: 9 * mm
+    property number taskMargin: 1.5 * mm
+    property number taskSpacing: 1.5 * mm
+    property number barFont: 3.2 * mm
+
+    CompositorApp {
+        id: wm
+    }
+
+    ListModel {
+        id: taskbarModel
+    }
+
+    // Desktop wallpaper.
+    Rectangle {
+        anchors.fill: parent
+        color: "#10131A"
+    }
+
+    // Hosted window frames are created here from C++. In fullscreen mode the
+    // WM raises this item's z above the taskbar.
+    Item {
+        id: desktop
+        anchors {
+            left: parent.left
+            right: parent.right
+            top: parent.top
+            bottom: parent.bottom
+            bottomMargin: root.barHeight
+        }
+        clip: true
+    }
+
+    // Taskbar.
+    Rectangle {
+        id: taskbar
+        anchors {
+            left: parent.left
+            right: parent.right
+            bottom: parent.bottom
+        }
+        height: root.barHeight
+        color: "#181B22"
+
+        Text {
+            id: socketLabel
+            anchors {
+                left: parent.left
+                verticalCenter: parent.verticalCenter
+                leftMargin: root.taskMargin * 2
+            }
+            text: wm.socketName
+            color: "#7A8194"
+            fontSize: root.barFont * 0.9
+        }
+
+        Row {
+            anchors {
+                right: parent.right
+                verticalCenter: parent.verticalCenter
+                rightMargin: root.taskMargin
+            }
+            spacing: root.taskSpacing
+
+            Repeater {
+                model: taskbarModel
+
+                Rectangle {
+                    width: root.taskWidth
+                    height: root.taskHeight
+                    radius: root.taskHeight * 0.2
+                    clip: true
+                    color: model.active ? "#3A4A66" : (model.minimized ? "#20242E" : "#2A2E38")
+
+                    Text {
+                        x: root.taskHeight * 0.3
+                        y: root.taskHeight * 0.25
+                        width: root.taskWidth - 2 * root.taskHeight * 0.3
+                        text: model.title
+                        color: model.minimized ? "#7A8194" : "#E6E8EE"
+                        fontSize: root.barFont
+                    }
+
+                    MouseArea {
+                        x: 0
+                        y: 0
+                        width: root.taskWidth
+                        height: root.taskHeight
+                        onClicked: wm.activateTask(index)
+                    }
+                }
+            }
+        }
+    }
+}
